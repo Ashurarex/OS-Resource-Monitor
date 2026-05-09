@@ -22,20 +22,17 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Main app background */
     .stApp {
         background-color: #0e1117;
         color: #fafafa;
     }
 
-    /* Main content area */
     .block-container {
         background-color: #0e1117;
         padding-top: 2rem;
         padding-bottom: 2rem;
     }
 
-    /* Sidebar */
     [data-testid="stSidebar"] {
         background-color: #111827;
     }
@@ -44,12 +41,10 @@ st.markdown(
         color: #f9fafb !important;
     }
 
-    /* Headings and text */
     h1, h2, h3, h4, h5, h6, p, span, div, label {
         color: #f9fafb !important;
     }
 
-    /* Metric cards */
     [data-testid="stMetric"] {
         background-color: #1f2937;
         border: 1px solid #374151;
@@ -66,27 +61,18 @@ st.markdown(
         color: #ffffff !important;
     }
 
-    /* Dataframe */
     [data-testid="stDataFrame"] {
         background-color: #111827;
     }
 
-    /* Divider */
     hr {
         border-color: #374151;
     }
 
-    /* Alerts */
     .stAlert {
         border-radius: 12px;
     }
 
-    /* Progress bars background */
-    [data-testid="stProgress"] > div > div {
-        background-color: #2563eb;
-    }
-
-    /* Charts */
     [data-testid="stVegaLiteChart"] {
         background-color: #111827;
         border-radius: 12px;
@@ -110,6 +96,10 @@ def bytes_to_mb(value):
 
 
 def get_disk_path():
+    """
+    Uses Windows C:\\ drive locally.
+    Uses / on Linux/macOS and Streamlit Cloud.
+    """
     if platform.system() == "Windows":
         return "C:\\"
     return "/"
@@ -127,17 +117,27 @@ def get_os_info():
 
 
 def get_uptime_info():
-    boot_time = datetime.fromtimestamp(psutil.boot_time())
-    uptime = datetime.now() - boot_time
+    try:
+        boot_time = datetime.fromtimestamp(psutil.boot_time())
+        uptime = datetime.now() - boot_time
 
-    return {
-        "Boot Time": boot_time.strftime("%Y-%m-%d %H:%M:%S"),
-        "Uptime": str(uptime).split(".")[0]
-    }
+        return {
+            "Boot Time": boot_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "Uptime": str(uptime).split(".")[0]
+        }
+
+    except Exception:
+        return {
+            "Boot Time": "Not available",
+            "Uptime": "Not available"
+        }
 
 
 def get_cpu_info():
-    cpu_freq = psutil.cpu_freq()
+    try:
+        cpu_freq = psutil.cpu_freq()
+    except Exception:
+        cpu_freq = None
 
     return {
         "CPU Usage (%)": psutil.cpu_percent(interval=0.5),
@@ -161,85 +161,123 @@ def get_memory_info():
 
 
 def get_disk_info():
-    disk_path = get_disk_path()
-    disk = psutil.disk_usage(disk_path)
+    try:
+        disk_path = get_disk_path()
+        disk = psutil.disk_usage(disk_path)
 
-    return {
-        "Disk Path": disk_path,
-        "Total Disk (GB)": round(bytes_to_gb(disk.total), 2),
-        "Used Disk (GB)": round(bytes_to_gb(disk.used), 2),
-        "Free Disk (GB)": round(bytes_to_gb(disk.free), 2),
-        "Disk Usage (%)": disk.percent
-    }
+        return {
+            "Disk Path": disk_path,
+            "Total Disk (GB)": round(bytes_to_gb(disk.total), 2),
+            "Used Disk (GB)": round(bytes_to_gb(disk.used), 2),
+            "Free Disk (GB)": round(bytes_to_gb(disk.free), 2),
+            "Disk Usage (%)": disk.percent
+        }
+
+    except Exception:
+        return {
+            "Disk Path": "Not available",
+            "Total Disk (GB)": "Not available",
+            "Used Disk (GB)": "Not available",
+            "Free Disk (GB)": "Not available",
+            "Disk Usage (%)": 0
+        }
 
 
 def get_network_info():
-    network = psutil.net_io_counters()
+    try:
+        network = psutil.net_io_counters()
 
-    return {
-        "Data Sent (MB)": round(bytes_to_mb(network.bytes_sent), 2),
-        "Data Received (MB)": round(bytes_to_mb(network.bytes_recv), 2),
-        "Packets Sent": network.packets_sent,
-        "Packets Received": network.packets_recv
-    }
+        return {
+            "Data Sent (MB)": round(bytes_to_mb(network.bytes_sent), 2),
+            "Data Received (MB)": round(bytes_to_mb(network.bytes_recv), 2),
+            "Packets Sent": network.packets_sent,
+            "Packets Received": network.packets_recv
+        }
+
+    except Exception:
+        return {
+            "Data Sent (MB)": 0,
+            "Data Received (MB)": 0,
+            "Packets Sent": "Not available",
+            "Packets Received": "Not available"
+        }
 
 
 def get_battery_info():
-    battery = psutil.sensors_battery()
+    """
+    Safe battery function.
 
-    if battery is None:
+    On Streamlit Cloud/Linux server, battery sensors may not exist.
+    This function prevents FileNotFoundError and deployment crash.
+    """
+    try:
+        battery = psutil.sensors_battery()
+
+        if battery is None:
+            return {
+                "Battery Available": "No",
+                "Battery Percentage": "Not available",
+                "Charging": "Not available",
+                "Time Left": "Not available"
+            }
+
+        if battery.secsleft == psutil.POWER_TIME_UNLIMITED:
+            time_left = "Charging / Unlimited"
+        elif battery.secsleft == psutil.POWER_TIME_UNKNOWN:
+            time_left = "Unknown"
+        else:
+            hours = battery.secsleft // 3600
+            minutes = (battery.secsleft % 3600) // 60
+            time_left = f"{hours}h {minutes}m"
+
         return {
-            "Battery Available": "No",
+            "Battery Available": "Yes",
+            "Battery Percentage": f"{battery.percent}%",
+            "Charging": "Yes" if battery.power_plugged else "No",
+            "Time Left": time_left
+        }
+
+    except Exception:
+        return {
+            "Battery Available": "Not supported",
             "Battery Percentage": "Not available",
             "Charging": "Not available",
             "Time Left": "Not available"
         }
 
-    if battery.secsleft == psutil.POWER_TIME_UNLIMITED:
-        time_left = "Charging / Unlimited"
-    elif battery.secsleft == psutil.POWER_TIME_UNKNOWN:
-        time_left = "Unknown"
-    else:
-        hours = battery.secsleft // 3600
-        minutes = (battery.secsleft % 3600) // 60
-        time_left = f"{hours}h {minutes}m"
-
-    return {
-        "Battery Available": "Yes",
-        "Battery Percentage": f"{battery.percent}%",
-        "Charging": "Yes" if battery.power_plugged else "No",
-        "Time Left": time_left
-    }
-
 
 def get_process_info(limit=10):
     processes = []
 
-    for process in psutil.process_iter(
-        ["pid", "name", "cpu_percent", "memory_percent", "status"]
-    ):
-        try:
-            processes.append(process.info)
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            pass
+    try:
+        for process in psutil.process_iter(
+            ["pid", "name", "cpu_percent", "memory_percent", "status"]
+        ):
+            try:
+                processes.append(process.info)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
 
-    process_df = pd.DataFrame(processes)
+        process_df = pd.DataFrame(processes)
 
-    if process_df.empty:
+        if process_df.empty:
+            return process_df
+
+        process_df["cpu_percent"] = process_df["cpu_percent"].fillna(0)
+        process_df["memory_percent"] = process_df["memory_percent"].fillna(0)
+
+        process_df = process_df.sort_values(
+            by=["cpu_percent", "memory_percent"],
+            ascending=False
+        ).head(limit)
+
+        process_df["cpu_percent"] = process_df["cpu_percent"].round(2)
+        process_df["memory_percent"] = process_df["memory_percent"].round(2)
+
         return process_df
 
-    process_df["cpu_percent"] = process_df["cpu_percent"].fillna(0)
-    process_df["memory_percent"] = process_df["memory_percent"].fillna(0)
-
-    process_df = process_df.sort_values(
-        by=["cpu_percent", "memory_percent"],
-        ascending=False
-    ).head(limit)
-
-    process_df["cpu_percent"] = process_df["cpu_percent"].round(2)
-    process_df["memory_percent"] = process_df["memory_percent"].round(2)
-
-    return process_df
+    except Exception:
+        return pd.DataFrame()
 
 
 def show_warning_system(cpu_usage, ram_usage, disk_usage, battery_info):
@@ -260,11 +298,15 @@ def show_warning_system(cpu_usage, ram_usage, disk_usage, battery_info):
         warning_found = True
 
     if battery_info["Battery Available"] == "Yes":
-        battery_percent = int(battery_info["Battery Percentage"].replace("%", ""))
+        try:
+            battery_percent = int(battery_info["Battery Percentage"].replace("%", ""))
 
-        if battery_percent <= 20 and battery_info["Charging"] == "No":
-            st.warning("Low battery detected. Connect charger soon.")
-            warning_found = True
+            if battery_percent <= 20 and battery_info["Charging"] == "No":
+                st.warning("Low battery detected. Connect charger soon.")
+                warning_found = True
+
+        except ValueError:
+            pass
 
     if not warning_found:
         st.success("No critical system warnings detected.")
@@ -444,7 +486,7 @@ if show_graphs:
 
 
 # -------------------------------------------------
-# CPU, RAM, Disk, Network details
+# Detailed resource information
 # -------------------------------------------------
 st.subheader("Detailed Resource Information")
 
