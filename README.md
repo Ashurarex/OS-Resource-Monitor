@@ -3,6 +3,8 @@
 A live **Operating System Resource Monitor Dashboard** built using **Python**, **Streamlit**, and **psutil**.  
 This project displays real-time system statistics such as CPU usage, RAM usage, disk usage, network activity, battery status, running processes, operating system information, and system uptime.
 
+Video Link: https://drive.google.com/file/d/1DjlByZM2CWBzsuVVfYVUh8592MLkB2Fz/view?usp=sharing
+
 ---
 
 ## Project Overview
